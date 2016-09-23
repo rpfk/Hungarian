@@ -15,8 +15,8 @@ Because the project is not published on Packagist, the following has to be added
 ```
 "repositories": [
    {
-     "type": "git",
-     "url": "git://github.com/rpfk/Hungarian.git"
+      "type": "vcs",
+      "url": "https://github.com/rpfk/Hungarian"
    }
 ]
 ```
