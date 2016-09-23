@@ -1,5 +1,6 @@
 {
     "name": "rpfk/hungarian",
+    "version": "dev-master",
     "description": "An implementation of the Hungarian algorithm in PHP.",
     "type": "library",
     "license": "MIT",
