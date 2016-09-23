@@ -1,7 +1,7 @@
 # Hungarian
 An implementation of the Hungarian algorithm in PHP.
 
-# Installation
+# Installation using Composer
 If you want to use this library in your project, the following has to be added to your `composer.json`
 
 ```
@@ -10,7 +10,7 @@ If you want to use this library in your project, the following has to be added t
 }
 ```
 
-And because the project is not published on Packagist, the following has to be added to point to this repository
+Because the project is not published on Packagist, the following has to be added to point to this repository
 
 ```
 "repositories": [
