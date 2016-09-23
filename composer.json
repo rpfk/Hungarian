@@ -1,0 +1,14 @@
+{
+    "name": "rpfk/hungarian",
+    "description": "An implementation of the Hungarian algorithm in PHP.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Robert Koster",
+            "email": "robert@rpfk.nl"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {}
+}
