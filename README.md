@@ -1,5 +1,5 @@
 # Hungarian
-An implementation of the Hungarian algorithm in PHP.
+An implementation of the Hungarian algorithm in PHP. The Hungarian algorithm can be used to find the optimal (minimal cost) assignment between two types of entities given a cost matrix. The Hungarian algorithm is also known as the Kuhn–Munkres algorithm or Munkres assignment algorithm.
 
 # Installation using Composer
 If you want to use this library in your project, the following has to be added to your `composer.json`
