@@ -1,6 +1,5 @@
 <?php
-namespace RPFK\Matrix;
-
+namespace RPFK\Hungarian;
 
 class Hungarian
 {
