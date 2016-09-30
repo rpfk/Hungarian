@@ -10,6 +10,11 @@
             "email": "robert@rpfk.nl"
         }
     ],
+    "autoload": {
+        "psr-4": {
+            "RPFK\\Hungarian\\": "src/"
+        }
+    },
     "minimum-stability": "stable",
     "require": {}
 }
