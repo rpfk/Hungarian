@@ -160,7 +160,13 @@ class Hungarian
             } elseif (
                 max($zeros_column) > max($zeros_row) || (
                     max($zeros_column) == max($zeros_row) &&
-                    count($zeros_column) > count($zeros_row)
+                    (
+                        count(array_search(max($zeros_column), $zeros_column, true)) > array_search(max($zeros_row), $zeros_row, true) ||
+                        (
+                            count(array_search(max($zeros_column), $zeros_column, true)) == array_search(max($zeros_row), $zeros_row, true) &&
+                            count($zeros_column) > count($zeros_row)
+                        )
+                    )
                 )
             ) {
                 $this->covered_columns[] = array_search(max($zeros_column), $zeros_column, true);
