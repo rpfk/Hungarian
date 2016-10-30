@@ -12,7 +12,4 @@ $array = [
 
 $hungarian  = new \RPFK\Hungarian\Hungarian($array);
 
-$hungarian->solve();
-
-var_dump($hungarian->getMatrix());
-var_dump($hungarian->allocation());
+$hungarian->solve(true);
