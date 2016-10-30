@@ -10,10 +10,6 @@ $array = [
     [3,1,1,12,0],
 ];
 
-$hungarian  = new \RPFK\Matrix\Hungarian($array);
+$hungarian  = new \RPFK\Hungarian\Hungarian($array);
 
-$hungarian->solve();
-
-var_dump($hungarian->getMatrix());
-var_dump($hungarian->allocation());
-var_dump($hungarian->allocated_rows, $hungarian->allocated_columns);
+$hungarian->solve(true);
