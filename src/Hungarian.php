@@ -3,268 +3,377 @@ namespace RPFK\Hungarian;
 
 class Hungarian
 {
-    public $allocation = [];
+    /*
+     * The assignment cost matrix to be minimised.
+     */
+    public $matrix = [];
 
-    public $allocated_columns = [];
+    /*
+     * The reduced cost matrix.
+     */
+    protected $reduced = [];
 
-    public $allocated_rows = [];
+    /*
+     * The primed zeros of the matrix.
+     */
+    protected $primed = [];
 
-    public $matrix;
+    /*
+     * The starred zeros of the matrix.
+     */
+    protected $starred = [];
 
-    protected $columns;
-
-    protected $rows;
-
-    public $covered_columns = [];
-
-    public $covered_rows = [];
+    /*
+     * The covered lines of the matrix.
+     */
+    protected $covered = [
+        'column' => [],
+        'row' => []
+    ];
 
     public function __construct(array $matrix)
     {
+        $this->isValid($matrix);
         $this->matrix = $matrix;
-        $this->rows = count($matrix);
-        $this->column = count(reset($matrix));
+        $this->reduced = $matrix;
     }
 
-    public function getMatrix()
+    public function isValid(array $matrix)
     {
-        return $this->matrix;
-    }
-
-    public function covered()
-    {
-        $columns = $this->covered_columns;
-        $row = $this->covered_rows;
-        return compact('columns', 'row');
-    }
-
-    public function transpose()
-    {
-        return array_map(null, ...$this->matrix);
-    }
-
-    public function uncoveredMatrix(): array
-    {
-        $covered_rows = $this->covered_rows;
-        $covered_columns = $this->covered_columns;
-
-        $filtered = array_filter($this->matrix, function ($row) use ($covered_rows) {
-            return !in_array($row, $covered_rows, true);
-        }, ARRAY_FILTER_USE_KEY);
-
-        foreach ($filtered as $row => $cells) {
-            $filtered[$row] = array_filter($cells, function ($column) use ($covered_columns) {
-                return !in_array($column, $covered_columns, true);
-            }, ARRAY_FILTER_USE_KEY);
+        if (count($matrix) == false) {
+            throw new \Exception('Number of rows in matrix returns false.');
         }
-
-        return $filtered;
-    }
-
-    public function unallocatedMatrix(): array
-    {
-        $allocated_rows = $this->allocated_rows;
-        $allocated_columns = $this->allocated_columns;
-
-        $filtered = array_filter($this->matrix, function ($row) use ($allocated_rows) {
-            return !in_array($row, $allocated_rows, true);
-        }, ARRAY_FILTER_USE_KEY);
-
-        foreach ($filtered as $row => $cells) {
-            $filtered[$row] = array_filter($cells, function ($column) use ($allocated_columns) {
-                return !in_array($column, $allocated_columns, true);
-            }, ARRAY_FILTER_USE_KEY);
-        }
-
-        return $filtered;
-    }
-
-    public function reduceRow()
-    {
-        foreach ($this->matrix as $row => $cells) {
-            $min = min($cells);
-
-            foreach ($cells as $column => $cell) {
-                $this->matrix[$row][$column] -= $min;
+        foreach ($matrix as $key => $row) {
+            if (count($row) !== count(array_intersect_key($row, ...$matrix))) {
+                throw new \Exception(printf('Column keys of row %u do not correspond to the column keys found in the rest of the matrix.', $key));
             }
         }
+        return true;
     }
 
-    public function reduceColumn()
+    /*
+     * Reduces the cost matrix
+     */
+    protected function reduce()
     {
-        foreach ($this->transpose() as $column => $cells) {
+        /*
+         * Reduces all rows of the matrix
+         */
+        foreach ($this->reduced as $row => $cells) {
             $min = min($cells);
+            foreach ($cells as $column => $cell) {
+                $this->reduced[$row][$column] -= $min;
+            }
+        }
 
+        $transposed = array_map(null, ...$this->reduced);
+
+        /*
+         * Reduces all columns of the matrix
+         */
+        foreach ($transposed as $column => $cells) {
+            $min = min($cells);
             foreach ($cells as $row => $cell) {
-                $this->matrix[$row][$column] -= $min;
+                $this->reduced[$row][$column] -= $min;
             }
         }
     }
 
-    public function solve()
+    public function addPrime($row, $column)
     {
-        $this->reduceRow();
-        $this->reduceColumn();
-
-        while (true) {
-            if ($this->hasOptimum()) {
-                break;
-            }
-            $this->modifyCovered();
-        }
-
+        $this->primed[$row] = $column;
         return $this;
     }
 
-    public function hasOptimum(): bool
+    public function addStar($row, $column)
     {
-        $this->covered_columns = [];
-        $this->covered_rows = [];
+        $this->starred[$row] = $column;
+        return $this;
+    }
 
-        while (true) {
+    public function getPrimed()
+    {
+        return $this->primed;
+    }
 
-            if ($this->rows == count($this->covered_columns) + count($this->covered_rows)) {
-                return true;
+    public function hasPrimeInColumn($column)
+    {
+        return (bool)array_search($column, $this->primed, true);
+    }
+
+    public function getPrimeFromColumn($column)
+    {
+        return array_search($column, $this->primed, true);
+    }
+
+    public function hasPrimeInRow($row)
+    {
+        return array_key_exists($row, $this->primed);
+    }
+
+    public function getPrimeFromRow($row)
+    {
+        if (!key_exists($row, $this->primed)) {
+            return false;
+        }
+        return $this->primed[$row];
+    }
+
+    public function hasStarInColumn($column)
+    {
+        return array_search($column, $this->starred, true) !== false;
+    }
+
+    public function getStarFromColumn($column)
+    {
+        return array_search($column, $this->starred, true);
+    }
+
+    public function hasStarInRow($row)
+    {
+        return array_key_exists($row, $this->starred);
+    }
+
+    public function getStarFromRow($row)
+    {
+        if (!key_exists($row, $this->starred)) {
+            return false;
+        }
+        return $this->starred[$row];
+    }
+
+    public function getZeroMatrix()
+    {
+        $zeros = [];
+        foreach ($this->reduced as $row => $cells) {
+            $zeros[$row] = array_keys($cells, 0, true);
+        }
+        return $zeros;
+    }
+
+    public function getCoveredZeroMatrix($zero_matrix)
+    {
+        $covered_zero_matrix = [];
+        foreach ($zero_matrix as $row => $cells) {
+            foreach ($cells as $column) {
+                if (in_array($row, $this->covered['row'], true) || in_array($column, $this->covered['column'], true)) {
+                    $covered_zero_matrix[$row][] = $column;
+                }
+            }
+        }
+        return $covered_zero_matrix;
+    }
+
+    public function getNonCoveredZeroMatrix($zero_matrix)
+    {
+        $non_covered_zero_matrix = [];
+        foreach ($zero_matrix as $row => $cells) {
+            foreach ($cells as $column) {
+                if (!in_array($row, $this->covered['row'], true) && !in_array($column, $this->covered['column'], true)) {
+                    $non_covered_zero_matrix[$row][] = $column;
+                }
+            }
+        }
+        return $non_covered_zero_matrix;
+    }
+
+    public function solve($print = false)
+    {
+        $print ? $this->printMatrix($this->matrix, 'Original cost matrix:') : null;
+        /*
+         * Preliminary Steps:
+         *  -  Generate reduced matrix
+         *  -  For each row
+         *     - Star first non-covered zero
+         *     - Cover column of starred zero
+         */
+        $this->reduce();
+        $print ? $this->printMatrix($this->reduced, 'Reduced cost matrix:') : null;
+        foreach ($this->reduced as $row => $cells) {
+            $columns = array_diff(array_keys($cells, 0, true), $this->covered['column']);
+            if (isset($columns[0])) {
+                $this->addStar($row, $columns[0]);
+                $this->covered['column'][] = $columns[0];
+            }
+        }
+        $print ? $this->printMatrix($this->reduced, 'Final preliminary reduced cost matrix:') : null;
+
+        /*
+         * Generate zero matrix
+         */
+        start:
+        $zero_matrix = $this->getZeroMatrix();
+        $non_covered_zero_matrix = $this->getNonCoveredZeroMatrix($zero_matrix);
+        while ($non_covered_zero_matrix) {
+
+            /*
+             * Step 1:
+             *  -  Select first non-covered zero and prime this selected zero
+             *  -  If has starred zero in row of selected zero
+             *     - Uncover column of starred zero
+             *     - Cover row of starred zero
+             *     Else
+             *     - Step 2
+             */
+            $row = key($non_covered_zero_matrix);
+            $column = $non_covered_zero_matrix[$row][0];
+            $this->addPrime($row, $column);
+            if ($this->hasStarInRow($row)) {
+
+                // get column from the starred zero in the row
+                $column = $this->getStarFromRow($row);
+
+                // uncover the column of the starred zero
+                $key = array_search($column, $this->covered['column'], true);
+                unset($this->covered['column'][$key]);
+
+                // cover the row
+                $this->covered['row'][] = $row;
+            } else {
+
+                /*
+                 * Step 2:
+                 *  -  Get the sequence of starred and primed zeros connecting to the initial primed zero
+                 *     - Get the starred zero in the column of the primed zero
+                 *     - Get the primed zero in the row of the starred zero
+                 *  -  Unstar the starred zeros from the sequence
+                 *  -  Star the primed zeros from the sequence
+                 *  -  Empty the list with primed zeros
+                 *  -  Empty the list with covered columns and covered rows
+                 *  -  Cover the columns with a starred zero in it
+                 */
+                $starred = [];
+                $primed = [];
+                $primed[$row] = $column;
+                $i = $row;
+                while (true) {
+
+                    if (!$this->hasStarInColumn($primed[$i])) {
+
+                        // Unstar the starred zeros from the sequence
+                        foreach ($starred as $row => $column) {
+                            unset($this->starred[$row]);
+                        }
+
+                        // Star the primed zeros from the sequence
+                        foreach ($primed as $row => $column) {
+                            $this->addStar($row, $column);
+                        }
+
+                        // Empty the list with primed zeros
+                        $this->primed = [];
+
+                        // Empty the list with covered columns
+                        $this->covered['column'] = [];
+
+                        // Empty the list with covered columns
+                        $this->covered['row'] = [];
+
+                        // Cover the columns with a starred zero in it
+                        foreach ($this->starred as $row => $column) {
+                            $this->covered['column'][] = $column;
+                        }
+                        break 1;
+                    }
+
+                    $star_row = $this->getStarFromColumn($primed[$i]);
+                    $star_column = $primed[$i];
+                    $starred[$star_row] = $star_column;
+
+                    if ($this->hasPrimeInRow($star_row)) {
+                        $prime_row = $star_row;
+                        $prime_column = $this->getPrimeFromRow($prime_row);
+                        $primed[$prime_row] = $prime_column;
+                    } else {
+                        die;
+                    }
+
+                    $i = $prime_row;
+                }
             }
 
-            $filtered = $this->uncoveredMatrix();
+            $print ? $this->printMatrix($this->reduced, 'Reduced cost matrix of non-covered zero iteration:') : null;
 
-            if (empty($filtered)) {
-                break;
-            };
+            $zero_matrix = $this->getZeroMatrix();
+            $non_covered_zero_matrix = $this->getNonCoveredZeroMatrix($zero_matrix);
+        }
 
-            $zeros = [];
-            $zeros_row = [];
-            $zeros_column = [];
-
-            foreach ($filtered as $row => $cells) {
+        /*
+         * Step 3:
+         *  -  If the number of covered columns is equal to the number of rows/columns of the cost matrix
+         *     - The currently starred zeros show the optimal solution
+         *
+         */
+        if (count($this->covered['column']) + count($this->covered['row']) === count($this->reduced)) {
+            return $this->starred;
+        } else {
+            $non_covered_reduced_matrix = [];
+            $once_covered_reduced_matrix = [];
+            $twice_covered_reduced_matrix = [];
+            foreach ($this->reduced as $row => $cells) {
                 foreach ($cells as $column => $cell) {
-                    if ($this->matrix[$row][$column] == 0) {
-                        $zeros[$row][$column] = 1;
+                    if (!in_array($row, $this->covered['row'], true) && !in_array($column, $this->covered['column'], true)) {
+                        $non_covered_reduced_matrix[$row][$column] = $cell;
+                    } elseif (in_array($row, $this->covered['row'], true) && in_array($column, $this->covered['column'], true)) {
+                        $twice_covered_reduced_matrix[$row][$column] = $cell;
                     } else {
-                        $zeros[$row][$column] = 0;
+                        $once_covered_reduced_matrix[$row][$column] = $cell;
                     }
                 }
             }
 
-            foreach ($zeros as $row => $cells) {
-                $zeros_row[$row] = array_sum($cells);
-            }
-
-            foreach (reset($zeros) as $column => $cell) {
-                $zeros_column[$column] = array_sum(array_combine(array_keys($zeros),array_column($zeros, $column)));
-            }
-
-            if (max($zeros_column) == 0) {
-                break;
-            } elseif (
-                max($zeros_column) > max($zeros_row) || (
-                    max($zeros_column) == max($zeros_row) &&
-                    (
-                        count(array_search(max($zeros_column), $zeros_column, true)) > array_search(max($zeros_row), $zeros_row, true) ||
-                        (
-                            count(array_search(max($zeros_column), $zeros_column, true)) == array_search(max($zeros_row), $zeros_row, true) &&
-                            count($zeros_column) > count($zeros_row)
-                        )
-                    )
-                )
-            ) {
-                $this->covered_columns[] = array_search(max($zeros_column), $zeros_column, true);
-            } else {
-                $this->covered_rows[] = array_search(max($zeros_row), $zeros_row, true);
-            }
-        }
-
-        return false;
-    }
-
-    public function modifyCovered()
-    {
-        $filtered = $this->uncoveredMatrix();
-
-        $min = INF;
-
-        foreach ($filtered as $row => $cells) {
-            foreach ($cells as $column => $cell) {
-                $min = ($cell < $min) ? $cell : $min;
-            }
-        }
-
-        foreach ($filtered as $row => $cells) {
-            foreach ($cells as $column => $cell) {
-                $this->matrix[$row][$column] -= $min;
-            }
-        }
-
-        foreach ($this->covered_rows as $row) {
-            foreach ($this->covered_columns as $column) {
-                $this->matrix[$row][$column] += $min;
-            }
-        }
-
-    }
-
-    public function allocate(int $row, int $column)
-    {
-        $this->allocation[$row] = $column;
-        $this->allocated_columns[] = $column;
-        $this->allocated_rows[] = $row;
-        return $this;
-    }
-
-    public function allocation()
-    {
-        while (true) {
-
-            $filtered = $this->unallocatedMatrix();
-
-            if (empty($filtered)) {
-                break;
-            };
-
-            $zeros = [];
-            $zeros_row = [];
-            $zeros_column = [];
-
-            foreach ($filtered as $row => $cells) {
+            $min = INF;
+            foreach ($non_covered_reduced_matrix as $row => $cells) {
                 foreach ($cells as $column => $cell) {
-                    if ($this->matrix[$row][$column] == 0) {
-                        $zeros[$row][$column] = 1;
-                    } else {
-                        $zeros[$row][$column] = 0;
-                    }
+                    $min = ($cell < $min) ? $cell : $min;
+                }
+            }
+            foreach ($non_covered_reduced_matrix as $row => $cells) {
+                foreach ($cells as $column => $cell) {
+                    $this->reduced[$row][$column] -= $min;
+                }
+            }
+            foreach ($twice_covered_reduced_matrix as $row => $cells) {
+                foreach ($cells as $column => $cell) {
+                    $this->reduced[$row][$column] += $min;
                 }
             }
 
-            foreach ($zeros as $row => $cells) {
-                $zeros_row[$row] = array_sum($cells);
-            }
-
-            foreach (reset($zeros) as $column => $cell) {
-                $zeros_column[$column] = array_sum(array_combine(array_keys($zeros),array_column($zeros, $column)));
-            }
-
-            if (count(array_keys($zeros_row, 1, true)) > 0) {
-                foreach (array_keys($zeros_row, 1, true) as $row) {
-                    $column = array_search(1, $zeros[$row], true);
-                    $this->allocate($row, $column);
-                }
-            } elseif (count(array_keys($zeros_column, 1, true)) > 0) {
-                foreach (array_keys($zeros_column, 1, true) as $column) {
-                    $row = array_search(1, array_combine(array_keys($zeros),array_column($zeros, $column)), true);
-                    $this->allocate($row, $column);
-                }
-            } elseif (min($zeros_column) < min($zeros_row)) {
-                $column = array_search(min($zeros_column), $zeros_column, true);
-                $row = array_search(1, array_combine(array_keys($zeros),array_column($zeros, $column)), true);
-                $this->allocate($row, $column);
-            } else {
-                $row = array_search(min($zeros_row), $zeros_row, true);
-                $column = array_search(1, $zeros[$row], true);
-                $this->allocate($row, $column);
-            }
+            goto start;
         }
 
-        return $this->allocation;
+    }
+
+    public function printMatrix($matrix, $title = null)
+    {
+        if (!is_null($title)) {
+            printf("\n" . $title);
+        }
+        printf("\n  ");
+        foreach ($matrix[key($matrix)] as $column => $cell) {
+            if (array_search($column, $this->covered['column'], true) !== false) {
+                printf("C \t  ");
+            } else {
+                printf("  \t  ");
+            }
+        }
+        printf("\n\n");
+        foreach ($matrix as $row => $cells) {
+            printf("| ");
+            foreach ($cells as $column => $cell) {
+                printf("%d", $cell);
+                if (isset($this->starred[$row]) && $this->starred[$row] === $column) {
+                    printf("*");
+                }
+                if (isset($this->primed[$row]) && $this->primed[$row] === $column) {
+                    printf("'");
+                }
+                printf(" \t| ");
+            }
+            if (array_search($row, $this->covered['row'], true) !== false) {
+                printf("C");
+            }
+            printf("\n");
+        }
     }
 }
