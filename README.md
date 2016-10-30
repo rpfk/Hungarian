@@ -35,9 +35,6 @@ $array = [
 // Create a new Hungarian problem using the score matrix as input
 $hungarian  = new Hungarian($array);
 
-// Solve the problem using the Hungarian algorithm
-$hungarian->solve();
-
-// Get the solution as an array with the row and column as key and value, respectively
-$allocation = $hungarian->allocation();
+// Solve the problem using the Hungarian algorithm and get the solution as an array with the row and column as key and value, respectively
+$allocation = $hungarian->solve();
 ```
